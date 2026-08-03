@@ -61,6 +61,19 @@ jobs:
         run: |
           set -eu
           go test -mod=vendor -count=1 -v -timeout 10m ./pkg/authorization/...
+      -
+        name: Test plugin
+        shell: bash
+        run: |
+          set -eu
+          # The plugin package only has an implementation for linux and windows
+          # (pm.enable/pm.restore/recursiveUnmount are unimplemented on darwin),
+          # so it does not compile on macOS.
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            echo "skipping: the plugin package has no darwin implementation"
+            exit 0
+          fi
+          go test -mod=vendor -count=1 -v -timeout 10m -run 'TestValidatePrivileges' ./plugin/
 
   module-zip:
     name: module-zip
