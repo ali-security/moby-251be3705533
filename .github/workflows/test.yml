@@ -74,6 +74,28 @@ jobs:
             exit 0
           fi
           go test -mod=vendor -count=1 -v -timeout 10m -run 'TestValidatePrivileges' ./plugin/
+      -
+        name: Vet daemon and integration packages
+        shell: bash
+        run: |
+          set -eu
+          # The daemon and integration/container packages cannot be *executed*
+          # here: daemon needs cgo and the integration suite needs a live
+          # dockerd. Type-check them instead — go vet compiles both the
+          # non-test sources and the *_test.go files without running them.
+          case "$RUNNER_OS" in
+            Linux)
+              go vet -mod=vendor ./daemon/ ./integration/container/
+              ;;
+            Windows)
+              # daemon/archive_unix.go is !windows, so only the integration
+              # test package is meaningful to type-check here.
+              go vet -mod=vendor ./integration/container/
+              ;;
+            *)
+              echo "skipping: the daemon package has no darwin implementation"
+              ;;
+          esac
 
   module-zip:
     name: module-zip
