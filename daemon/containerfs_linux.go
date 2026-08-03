@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/containerd/log"
+	securejoin "github.com/cyphar/filepath-securejoin"
 	"github.com/hashicorp/go-multierror"
 	"github.com/moby/sys/mount"
 	"github.com/moby/sys/symlink"
@@ -19,7 +20,6 @@ import (
 	"github.com/docker/docker/container"
 	"github.com/docker/docker/internal/mounttree"
 	"github.com/docker/docker/internal/unshare"
-	"github.com/docker/docker/pkg/fileutils"
 )
 
 type future struct {
@@ -104,7 +104,7 @@ func (daemon *Daemon) openContainerFS(ctr *container.Container) (_ *containerFSV
 				if err != nil {
 					return err
 				}
-				if err := fileutils.CreateIfNotExists(dest, stat.IsDir()); err != nil {
+				if err := createIfNotExists(ctr.BaseFS, strings.TrimPrefix(m.Destination, "/"), stat.IsDir()); err != nil {
 					return err
 				}
 
@@ -250,6 +250,39 @@ func (vw *containerFSView) Stat(ctx context.Context, path string) (*containertyp
 		return nil
 	})
 	return stat, err
+}
+
+// createIfNotExists creates a file or a directory only if it does not already
+// exist. All path operations are scoped to rootPath using
+// [github.com/cyphar/filepath-securejoin] to prevent symlink-escape attacks: a
+// container process cannot swap a path component with a symlink to redirect the
+// creation outside the container root (TOCTOU).
+func createIfNotExists(rootPath, unsafePath string, isDir bool) error {
+	if isDir {
+		return securejoin.MkdirAll(rootPath, unsafePath, 0o755)
+	}
+
+	parent := filepath.Dir(unsafePath)
+	if parent != "." && parent != "/" {
+		if err := securejoin.MkdirAll(rootPath, parent, 0o755); err != nil {
+			return err
+		}
+	}
+
+	// Open the (now-existing) parent directory scoped to the container root,
+	// then create the leaf via openat relative to that pinned directory fd so a
+	// swapped symlink cannot redirect the file creation outside the root.
+	parentDir, err := securejoin.OpenInRoot(rootPath, parent)
+	if err != nil {
+		return err
+	}
+	defer parentDir.Close()
+
+	fd, err := unix.Openat(int(parentDir.Fd()), filepath.Base(unsafePath), unix.O_CREAT|unix.O_WRONLY|unix.O_NOFOLLOW, 0o755)
+	if err != nil {
+		return err
+	}
+	return unix.Close(fd)
 }
 
 // makeMountRRO makes the mount recursively read-only.

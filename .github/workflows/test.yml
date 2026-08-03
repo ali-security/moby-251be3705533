@@ -75,14 +75,29 @@ jobs:
           fi
           go test -mod=vendor -count=1 -v -timeout 10m -run 'TestValidatePrivileges' ./plugin/
       -
+        name: Test daemon containerfs
+        shell: bash
+        run: |
+          set -eu
+          # daemon/containerfs_linux.go and its test are linux-only (implied by
+          # the _linux filename suffix), and the daemon package has no darwin
+          # implementation at all, so this only runs on Linux.
+          if [ "$RUNNER_OS" != "Linux" ]; then
+            echo "skipping: daemon/containerfs_linux_test.go is linux-only (the daemon package has no darwin implementation)"
+            exit 0
+          fi
+          go test -mod=vendor -count=1 -v -timeout 10m -run 'TestCreateIfNotExists' ./daemon/
+      -
         name: Vet daemon and integration packages
         shell: bash
         run: |
           set -eu
-          # The daemon and integration/container packages cannot be *executed*
-          # here: daemon needs cgo and the integration suite needs a live
-          # dockerd. Type-check them instead — go vet compiles both the
-          # non-test sources and the *_test.go files without running them.
+          # The daemon and integration/container packages cannot be executed in
+          # full here: most of the daemon suite and all of integration/container
+          # need a live dockerd. Type-check them instead — go vet compiles both
+          # the non-test sources and the *_test.go files without running them.
+          # (The self-contained daemon unit tests that do run without a dockerd
+          # are executed by the step above.)
           case "$RUNNER_OS" in
             Linux)
               go vet -mod=vendor ./daemon/ ./integration/container/
