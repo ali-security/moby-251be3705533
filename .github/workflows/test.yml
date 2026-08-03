@@ -55,6 +55,12 @@ jobs:
             ./pkg/stringid/... \
             ./pkg/tailfile/... \
             ./api/types/...
+      -
+        name: Test authorization
+        shell: bash
+        run: |
+          set -eu
+          go test -mod=vendor -count=1 -v -timeout 10m ./pkg/authorization/...
 
   module-zip:
     name: module-zip
