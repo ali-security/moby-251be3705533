@@ -86,7 +86,7 @@ jobs:
             echo "skipping: daemon/containerfs_linux_test.go is linux-only (the daemon package has no darwin implementation)"
             exit 0
           fi
-          go test -mod=vendor -count=1 -v -timeout 10m -run 'TestCreateIfNotExists' ./daemon/
+          go test -mod=vendor -count=1 -v -timeout 10m -run 'TestCreateIfNotExists|TestOpenMountTarget' ./daemon/
       -
         name: Vet daemon and integration packages
         shell: bash
