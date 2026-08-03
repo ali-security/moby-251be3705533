@@ -13,15 +13,9 @@ permissions:
   contents: read
 
 on:
-  workflow_call:
-    inputs:
-      storage:
-        required: true
-        type: string
-        default: "graphdriver"
-
+  workflow_dispatch:
 env:
-  GO_VERSION: "1.23.6"
+  GO_VERSION: 1.23.6
   GOTESTLIST_VERSION: v0.3.1
   TESTSTAT_VERSION: v0.1.25
   ITG_CLI_MATRIX_SIZE: 6
@@ -39,8 +33,7 @@ jobs:
     outputs:
       includes: ${{ steps.set.outputs.includes }}
     steps:
-      -
-        name: Create matrix includes
+      - name: Create matrix includes
         id: set
         uses: actions/github-script@v7
         with:
@@ -57,8 +50,7 @@ jobs:
               core.info(`matrix: ${JSON.stringify(includes)}`);
               core.setOutput('includes', JSON.stringify(includes));
             });
-      -
-        name: Show matrix
+      - name: Show matrix
         run: |
           echo ${{ steps.set.outputs.includes }}
 
@@ -73,14 +65,11 @@ jobs:
       matrix:
         include: ${{ fromJson(needs.unit-prepare.outputs.includes) }}
     steps:
-      -
-        name: Checkout
+      - name: Checkout
         uses: actions/checkout@v4
-      -
-        name: Set up runner
+      - name: Set up runner
         uses: ./.github/actions/setup-runner
-      -
-        name: Prepare
+      - name: Prepare
         run: |
           CACHE_DEV_SCOPE=dev
           if [[ "${{ matrix.mode }}" == *"firewalld"* ]]; then
@@ -88,26 +77,22 @@ jobs:
             CACHE_DEV_SCOPE="${CACHE_DEV_SCOPE}firewalld"
           fi
           echo "CACHE_DEV_SCOPE=${CACHE_DEV_SCOPE}" >> $GITHUB_ENV
-      -
-        name: Set up Docker Buildx
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
           version: ${{ env.SETUP_BUILDX_VERSION }}
           driver-opts: image=${{ env.SETUP_BUILDKIT_IMAGE }}
           buildkitd-flags: --debug
-      -
-        name: Build dev image
+      - name: Build dev image
         uses: docker/bake-action@v6
         with:
           targets: dev
           set: |
             dev.cache-from=type=gha,scope=dev
-      -
-        name: Test
+      - name: Test
         run: |
           make -o build test-unit
-      -
-        name: Prepare reports
+      - name: Prepare reports
         if: always()
         run: |
           mkdir -p bundles /tmp/reports
@@ -115,16 +100,14 @@ jobs:
           tar -xzf /tmp/reports.tar.gz -C /tmp/reports
           sudo chown -R $(id -u):$(id -g) /tmp/reports
           tree -nh /tmp/reports
-      -
-        name: Send to Codecov
+      - name: Send to Codecov
         uses: codecov/codecov-action@v4
         with:
           directory: ./bundles
           env_vars: RUNNER_OS
           flags: unit
           token: ${{ secrets.CODECOV_TOKEN }}  # used to upload coverage reports: https://github.com/moby/buildkit/pull/4660#issue-2142122533
-      -
-        name: Upload reports
+      - name: Upload reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -140,24 +123,20 @@ jobs:
     needs:
       - unit
     steps:
-      -
-        name: Set up Go
+      - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: vendor.sum
-      -
-        name: Download reports
+      - name: Download reports
         uses: actions/download-artifact@v4
         with:
           pattern: test-reports-unit-${{ inputs.storage }}-*
           path: /tmp/reports
-      -
-        name: Install teststat
+      - name: Install teststat
         run: |
           go install github.com/vearutop/teststat@${{ env.TESTSTAT_VERSION }}
-      -
-        name: Create summary
+      - name: Create summary
         run: |
           find /tmp/reports -type f -name '*-go-test-report.json' -exec teststat -markdown {} \+ >> $GITHUB_STEP_SUMMARY
 
@@ -166,35 +145,28 @@ jobs:
     timeout-minutes: 120 # guardrails timeout for the whole job
     continue-on-error: ${{ github.event_name != 'pull_request' }}
     steps:
-      -
-        name: Checkout
+      - name: Checkout
         uses: actions/checkout@v4
-      -
-        name: Set up runner
+      - name: Set up runner
         uses: ./.github/actions/setup-runner
-      -
-        name: Set up tracing
+      - name: Set up tracing
         uses: ./.github/actions/setup-tracing
-      -
-        name: Set up Docker Buildx
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
           version: ${{ env.SETUP_BUILDX_VERSION }}
           driver-opts: image=${{ env.SETUP_BUILDKIT_IMAGE }}
           buildkitd-flags: --debug
-      -
-        name: Build dev image
+      - name: Build dev image
         uses: docker/bake-action@v6
         with:
           targets: dev
           set: |
             dev.cache-from=type=gha,scope=dev
-      -
-        name: Test
+      - name: Test
         run: |
           make -o build test-docker-py
-      -
-        name: Prepare reports
+      - name: Prepare reports
         if: always()
         run: |
           mkdir -p bundles /tmp/reports
@@ -204,13 +176,11 @@ jobs:
           tree -nh /tmp/reports
 
           curl -sSLf localhost:16686/api/traces?service=integration-test-client > /tmp/reports/jaeger-trace.json
-      -
-        name: Test daemon logs
+      - name: Test daemon logs
         if: always()
         run: |
           cat bundles/test-docker-py/docker.log
-      -
-        name: Upload reports
+      - name: Upload reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -223,28 +193,23 @@ jobs:
     timeout-minutes: 120 # guardrails timeout for the whole job
     continue-on-error: ${{ github.event_name != 'pull_request' }}
     steps:
-      -
-        name: Checkout
+      - name: Checkout
         uses: actions/checkout@v4
-      -
-        name: Set up runner
+      - name: Set up runner
         uses: ./.github/actions/setup-runner
-      -
-        name: Set up Docker Buildx
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
           version: ${{ env.SETUP_BUILDX_VERSION }}
           driver-opts: image=${{ env.SETUP_BUILDKIT_IMAGE }}
           buildkitd-flags: --debug
-      -
-        name: Build dev image
+      - name: Build dev image
         uses: docker/bake-action@v6
         with:
           targets: dev
           set: |
             dev.cache-from=type=gha,scope=dev
-      -
-        name: Test
+      - name: Test
         run: |
           make -o build test-integration-flaky
         env:
@@ -257,8 +222,7 @@ jobs:
     outputs:
       includes: ${{ steps.set.outputs.includes }}
     steps:
-      -
-        name: Create matrix includes
+      - name: Create matrix includes
         id: set
         uses: actions/github-script@v7
         with:
@@ -280,8 +244,7 @@ jobs:
               core.info(`matrix: ${JSON.stringify(includes)}`);
               core.setOutput('includes', JSON.stringify(includes));
             });
-      -
-        name: Show matrix
+      - name: Show matrix
         run: |
           echo ${{ steps.set.outputs.includes }}
 
@@ -296,17 +259,13 @@ jobs:
       matrix:
         include: ${{ fromJson(needs.integration-prepare.outputs.includes) }}
     steps:
-      -
-        name: Checkout
+      - name: Checkout
         uses: actions/checkout@v4
-      -
-        name: Set up runner
+      - name: Set up runner
         uses: ./.github/actions/setup-runner
-      -
-        name: Set up tracing
+      - name: Set up tracing
         uses: ./.github/actions/setup-tracing
-      -
-        name: Prepare
+      - name: Prepare
         run: |
           CACHE_DEV_SCOPE=dev
           if [[ "${{ matrix.mode }}" == *"rootless"* ]]; then
@@ -321,29 +280,25 @@ jobs:
             CACHE_DEV_SCOPE="${CACHE_DEV_SCOPE}firewalld"
           fi
           echo "CACHE_DEV_SCOPE=${CACHE_DEV_SCOPE}" >> $GITHUB_ENV
-      -
-        name: Set up Docker Buildx
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
           version: ${{ env.SETUP_BUILDX_VERSION }}
           driver-opts: image=${{ env.SETUP_BUILDKIT_IMAGE }}
           buildkitd-flags: --debug
-      -
-        name: Build dev image
+      - name: Build dev image
         uses: docker/bake-action@v6
         with:
           targets: dev
           set: |
             dev.cache-from=type=gha,scope=${{ env.CACHE_DEV_SCOPE }}
-      -
-        name: Test
+      - name: Test
         run: |
           make -o build test-integration
         env:
           TEST_SKIP_INTEGRATION_CLI: 1
           TESTCOVERAGE: 1
-      -
-        name: Prepare reports
+      - name: Prepare reports
         if: always()
         run: |
           reportsName=${{ matrix.os }}
@@ -352,7 +307,7 @@ jobs:
           fi
           reportsPath="/tmp/reports/$reportsName"
           echo "TESTREPORTS_NAME=$reportsName" >> $GITHUB_ENV
-          
+
           mkdir -p bundles $reportsPath
           find bundles -path '*/root/*overlay2' -prune -o -type f \( -name '*-report.json' -o -name '*.log' -o -name '*.out' -o -name '*.prof' -o -name '*-report.xml' \) -print | xargs sudo tar -czf /tmp/reports.tar.gz
           tar -xzf /tmp/reports.tar.gz -C $reportsPath
@@ -360,21 +315,18 @@ jobs:
           tree -nh $reportsPath
 
           curl -sSLf localhost:16686/api/traces?service=integration-test-client > $reportsPath/jaeger-trace.json
-      -
-        name: Send to Codecov
+      - name: Send to Codecov
         uses: codecov/codecov-action@v4
         with:
           directory: ./bundles/test-integration
           env_vars: RUNNER_OS
           flags: integration,${{ matrix.mode }}
           token: ${{ secrets.CODECOV_TOKEN }}  # used to upload coverage reports: https://github.com/moby/buildkit/pull/4660#issue-2142122533
-      -
-        name: Test daemon logs
+      - name: Test daemon logs
         if: always()
         run: |
           cat bundles/test-integration/docker.log
-      -
-        name: Upload reports
+      - name: Upload reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -390,25 +342,21 @@ jobs:
     needs:
       - integration
     steps:
-      -
-        name: Set up Go
+      - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: vendor.sum
-      -
-        name: Download reports
+      - name: Download reports
         uses: actions/download-artifact@v4
         with:
           path: /tmp/reports
           pattern: test-reports-integration-${{ inputs.storage }}-*
           merge-multiple: true
-      -
-        name: Install teststat
+      - name: Install teststat
         run: |
           go install github.com/vearutop/teststat@${{ env.TESTSTAT_VERSION }}
-      -
-        name: Create summary
+      - name: Create summary
         run: |
           find /tmp/reports -type f -name '*-go-test-report.json' -exec teststat -markdown {} \+ >> $GITHUB_STEP_SUMMARY
 
@@ -419,21 +367,16 @@ jobs:
     outputs:
       matrix: ${{ steps.set.outputs.matrix }}
     steps:
-      -
-        name: Checkout
+      - name: Checkout
         uses: actions/checkout@v4
-      -
-        name: Set up Go
+      - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: vendor.sum
-      -
-        name: Install gotestlist
-        run:
-          go install github.com/crazy-max/gotestlist/cmd/gotestlist@${{ env.GOTESTLIST_VERSION }}
-      -
-        name: Create test matrix
+      - name: Install gotestlist
+        run: go install github.com/crazy-max/gotestlist/cmd/gotestlist@${{ env.GOTESTLIST_VERSION }}
+      - name: Create test matrix
         id: tests
         working-directory: ./integration-cli
         run: |
@@ -444,8 +387,7 @@ jobs:
           # take a long time to run.
           matrix="$(gotestlist -d ${{ env.ITG_CLI_MATRIX_SIZE }} -o "./..." -o "DockerSwarmSuite" -o "DockerNetworkSuite|DockerExternalVolumeSuite" ./...)"
           echo "matrix=$matrix" >> $GITHUB_OUTPUT
-      -
-        name: Create gha matrix
+      - name: Create gha matrix
         id: set
         uses: actions/github-script@v7
         with:
@@ -478,8 +420,7 @@ jobs:
               core.info(`matrix: ${JSON.stringify(matrix)}`);
               core.setOutput('matrix', JSON.stringify(matrix));
             });
-      -
-        name: Show final gha matrix
+      - name: Show final gha matrix
         run: |
           echo ${{ steps.set.outputs.matrix }}
 
@@ -493,17 +434,13 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.integration-cli-prepare.outputs.matrix) }}
     steps:
-      -
-        name: Checkout
+      - name: Checkout
         uses: actions/checkout@v4
-      -
-        name: Set up runner
+      - name: Set up runner
         uses: ./.github/actions/setup-runner
-      -
-        name: Set up tracing
+      - name: Set up tracing
         uses: ./.github/actions/setup-tracing
-      -
-        name: Prepare
+      - name: Prepare
         run: |
           CACHE_DEV_SCOPE=dev
           if [[ "${{ matrix.mode }}" == *"firewalld"* ]]; then
@@ -511,36 +448,32 @@ jobs:
             CACHE_DEV_SCOPE="${CACHE_DEV_SCOPE}firewalld"
           fi
           echo "CACHE_DEV_SCOPE=${CACHE_DEV_SCOPE}" >> $GITHUB_ENV
-      -
-        name: Set up Docker Buildx
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
           version: ${{ env.SETUP_BUILDX_VERSION }}
           driver-opts: image=${{ env.SETUP_BUILDKIT_IMAGE }}
           buildkitd-flags: --debug
-      -
-        name: Build dev image
+      - name: Build dev image
         uses: docker/bake-action@v6
         with:
           targets: dev
           set: |
             dev.cache-from=type=gha,scope=dev
-      -
-        name: Test
+      - name: Test
         run: |
           make -o build test-integration
         env:
           TEST_SKIP_INTEGRATION: 1
           TESTCOVERAGE: 1
-          TESTFLAGS: "-test.run (${{ matrix.test }})/"
-      -
-        name: Prepare reports
+          TESTFLAGS: -test.run (${{ matrix.test }})/
+      - name: Prepare reports
         if: always()
         run: |
           reportsName=$(echo -n "${{ matrix.test }}" | sha256sum | cut -d " " -f 1)
           reportsPath=/tmp/reports/$reportsName
           echo "TESTREPORTS_NAME=$reportsName" >> $GITHUB_ENV
-          
+
           mkdir -p bundles $reportsPath
           echo "${{ matrix.test }}" | tr -s '|' '\n' | tee -a "$reportsPath/tests.txt"
           find bundles -path '*/root/*overlay2' -prune -o -type f \( -name '*-report.json' -o -name '*.log' -o -name '*.out' -o -name '*.prof' -o -name '*-report.xml' \) -print | xargs sudo tar -czf /tmp/reports.tar.gz
@@ -549,21 +482,18 @@ jobs:
           tree -nh $reportsPath
 
           curl -sSLf localhost:16686/api/traces?service=integration-test-client > $reportsPath/jaeger-trace.json
-      -
-        name: Send to Codecov
+      - name: Send to Codecov
         uses: codecov/codecov-action@v4
         with:
           directory: ./bundles/test-integration
           env_vars: RUNNER_OS
           flags: integration-cli
           token: ${{ secrets.CODECOV_TOKEN }}  # used to upload coverage reports: https://github.com/moby/buildkit/pull/4660#issue-2142122533
-      -
-        name: Test daemon logs
+      - name: Test daemon logs
         if: always()
         run: |
           cat bundles/test-integration/docker.log
-      -
-        name: Upload reports
+      - name: Upload reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -579,24 +509,20 @@ jobs:
     needs:
       - integration-cli
     steps:
-      -
-        name: Set up Go
+      - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: vendor.sum
-      -
-        name: Download reports
+      - name: Download reports
         uses: actions/download-artifact@v4
         with:
           path: /tmp/reports
           pattern: test-reports-integration-cli-${{ inputs.storage }}-*
           merge-multiple: true
-      -
-        name: Install teststat
+      - name: Install teststat
         run: |
           go install github.com/vearutop/teststat@${{ env.TESTSTAT_VERSION }}
-      -
-        name: Create summary
+      - name: Create summary
         run: |
           find /tmp/reports -type f -name '*-go-test-report.json' -exec teststat -markdown {} \+ >> $GITHUB_STEP_SUMMARY

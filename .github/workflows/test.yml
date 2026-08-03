@@ -18,23 +18,19 @@ jobs:
           - windows-latest
     runs-on: ${{ matrix.os }}
     steps:
-      -
-        name: Checkout
+      - name: Checkout
         uses: actions/checkout@v4
-      -
-        name: Set up Go
+      - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.24"
+          go-version: '1.24'
           cache: false
-      -
-        name: Stage module files
+      - name: Stage module files
         shell: bash
         run: |
           cp vendor.mod go.mod
           cp vendor.sum go.sum
-      -
-        name: Test
+      - name: Test
         shell: bash
         run: |
           set -eu
@@ -55,14 +51,12 @@ jobs:
             ./pkg/stringid/... \
             ./pkg/tailfile/... \
             ./api/types/...
-      -
-        name: Test authorization
+      - name: Test authorization
         shell: bash
         run: |
           set -eu
           go test -mod=vendor -count=1 -v -timeout 10m ./pkg/authorization/...
-      -
-        name: Test plugin
+      - name: Test plugin
         shell: bash
         run: |
           set -eu
@@ -74,8 +68,7 @@ jobs:
             exit 0
           fi
           go test -mod=vendor -count=1 -v -timeout 10m -run 'TestValidatePrivileges' ./plugin/
-      -
-        name: Test daemon containerfs
+      - name: Test daemon containerfs
         shell: bash
         run: |
           set -eu
@@ -87,8 +80,7 @@ jobs:
             exit 0
           fi
           go test -mod=vendor -count=1 -v -timeout 10m -run 'TestCreateIfNotExists|TestOpenMountTarget' ./daemon/
-      -
-        name: Vet daemon and integration packages
+      - name: Vet daemon and integration packages
         shell: bash
         run: |
           set -eu
@@ -116,17 +108,14 @@ jobs:
     name: module-zip
     runs-on: ubuntu-latest
     steps:
-      -
-        name: Checkout
+      - name: Checkout
         uses: actions/checkout@v4
-      -
-        name: Set up Go
+      - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.24"
+          go-version: '1.24'
           cache: false
-      -
-        name: Restore pristine .github from the upstream tag
+      - name: Restore pristine .github from the upstream tag
         run: |
           set -eu
           curl -sSfL https://github.com/moby/moby/archive/refs/tags/v28.0.1.tar.gz -o /tmp/upstream.tar.gz
@@ -134,14 +123,12 @@ jobs:
           tar -xzf /tmp/upstream.tar.gz -C /tmp/upstream
           rm -rf .github
           cp -r /tmp/upstream/moby-28.0.1/.github .github
-      -
-        name: Drop non-module files
+      - name: Drop non-module files
         run: |
           set -eu
           rm -rf .git
           rm -f go.mod go.sum
-      -
-        name: Build module zip
+      - name: Build module zip
         run: |
           set -eu
           mkdir -p /tmp/helper
@@ -172,8 +159,7 @@ jobs:
           go mod init helper
           go get golang.org/x/mod@v0.24.0
           go run . "$GITHUB_WORKSPACE" /tmp/module.zip
-      -
-        name: Append vendor/modules.txt
+      - name: Append vendor/modules.txt
         run: |
           set -eu
           PREFIX='github.com/docker/docker@v28.0.1+incompatible'
@@ -184,8 +170,7 @@ jobs:
           mkdir -p /tmp/out
           cp /tmp/module.zip "/tmp/out/v28.0.1+incompatible.zip"
           unzip -l /tmp/out/v28.0.1+incompatible.zip | tail -5
-      -
-        name: Upload artifact
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: module-zip

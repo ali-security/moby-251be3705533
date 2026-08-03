@@ -15,15 +15,9 @@ concurrency:
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - 'master'
-      - '[0-9]+.[0-9]+'
-      - '[0-9]+.x'
-  pull_request:
 
 env:
-  GO_VERSION: "1.23.6"
+  GO_VERSION: 1.23.6
   TESTSTAT_VERSION: v0.1.25
   DESTDIR: ./build
   SETUP_BUILDX_VERSION: edge
@@ -46,24 +40,20 @@ jobs:
           - binary
           - dynbinary
     steps:
-      -
-        name: Set up Docker Buildx
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
           version: ${{ env.SETUP_BUILDX_VERSION }}
           driver-opts: image=${{ env.SETUP_BUILDKIT_IMAGE }}
           buildkitd-flags: --debug
-      -
-        name: Build
+      - name: Build
         uses: docker/bake-action@v6
         with:
           targets: ${{ matrix.target }}
-      -
-        name: List artifacts
+      - name: List artifacts
         run: |
           tree -nh ${{ env.DESTDIR }}
-      -
-        name: Check artifacts
+      - name: Check artifacts
         run: |
           find ${{ env.DESTDIR }} -type f -exec file -e ascii -- {} +
 
@@ -73,15 +63,13 @@ jobs:
     needs:
       - validate-dco
     steps:
-      -
-        name: Set up Docker Buildx
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
           version: ${{ env.SETUP_BUILDX_VERSION }}
           driver-opts: image=${{ env.SETUP_BUILDKIT_IMAGE }}
           buildkitd-flags: --debug
-      -
-        name: Build dev image
+      - name: Build dev image
         uses: docker/bake-action@v6
         with:
           targets: dev
@@ -96,32 +84,26 @@ jobs:
     needs:
       - build-dev
     steps:
-      -
-        name: Checkout
+      - name: Checkout
         uses: actions/checkout@v4
-      -
-        name: Set up runner
+      - name: Set up runner
         uses: ./.github/actions/setup-runner
-      -
-        name: Set up Docker Buildx
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
           version: ${{ env.SETUP_BUILDX_VERSION }}
           driver-opts: image=${{ env.SETUP_BUILDKIT_IMAGE }}
           buildkitd-flags: --debug
-      -
-        name: Build dev image
+      - name: Build dev image
         uses: docker/bake-action@v6
         with:
           targets: dev
           set: |
             dev.cache-from=type=gha,scope=dev-arm64
-      -
-        name: Test
+      - name: Test
         run: |
           make -o build test-unit
-      -
-        name: Prepare reports
+      - name: Prepare reports
         if: always()
         run: |
           mkdir -p bundles /tmp/reports
@@ -129,16 +111,14 @@ jobs:
           tar -xzf /tmp/reports.tar.gz -C /tmp/reports
           sudo chown -R $(id -u):$(id -g) /tmp/reports
           tree -nh /tmp/reports
-      -
-        name: Send to Codecov
+      - name: Send to Codecov
         uses: codecov/codecov-action@v4
         with:
           directory: ./bundles
           env_vars: RUNNER_OS
           flags: unit
           token: ${{ secrets.CODECOV_TOKEN }}  # used to upload coverage reports: https://github.com/moby/buildkit/pull/4660#issue-2142122533
-      -
-        name: Upload reports
+      - name: Upload reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -154,24 +134,20 @@ jobs:
     needs:
       - test-unit
     steps:
-      -
-        name: Set up Go
+      - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: vendor.sum
-      -
-        name: Download reports
+      - name: Download reports
         uses: actions/download-artifact@v4
         with:
           pattern: test-reports-unit-arm64-*
           path: /tmp/reports
-      -
-        name: Install teststat
+      - name: Install teststat
         run: |
           go install github.com/vearutop/teststat@${{ env.TESTSTAT_VERSION }}
-      -
-        name: Create summary
+      - name: Create summary
         run: |
           find /tmp/reports -type f -name '*-go-test-report.json' -exec teststat -markdown {} \+ >> $GITHUB_STEP_SUMMARY
 
@@ -182,38 +158,31 @@ jobs:
     needs:
       - build-dev
     steps:
-      -
-        name: Checkout
+      - name: Checkout
         uses: actions/checkout@v4
-      -
-        name: Set up runner
+      - name: Set up runner
         uses: ./.github/actions/setup-runner
-      -
-        name: Set up tracing
+      - name: Set up tracing
         uses: ./.github/actions/setup-tracing
-      -
-        name: Set up Docker Buildx
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
           version: ${{ env.SETUP_BUILDX_VERSION }}
           driver-opts: image=${{ env.SETUP_BUILDKIT_IMAGE }}
           buildkitd-flags: --debug
-      -
-        name: Build dev image
+      - name: Build dev image
         uses: docker/bake-action@v6
         with:
           targets: dev
           set: |
             dev.cache-from=type=gha,scope=dev-arm64
-      -
-        name: Test
+      - name: Test
         run: |
           make -o build test-integration
         env:
           TEST_SKIP_INTEGRATION_CLI: 1
           TESTCOVERAGE: 1
-      -
-        name: Prepare reports
+      - name: Prepare reports
         if: always()
         run: |
           reportsPath="/tmp/reports/arm64-graphdriver"
@@ -223,21 +192,18 @@ jobs:
           sudo chown -R $(id -u):$(id -g) $reportsPath
           tree -nh $reportsPath
           curl -sSLf localhost:16686/api/traces?service=integration-test-client > $reportsPath/jaeger-trace.json
-      -
-        name: Send to Codecov
+      - name: Send to Codecov
         uses: codecov/codecov-action@v4
         with:
           directory: ./bundles/test-integration
           env_vars: RUNNER_OS
           flags: integration
           token: ${{ secrets.CODECOV_TOKEN }}  # used to upload coverage reports: https://github.com/moby/buildkit/pull/4660#issue-2142122533
-      -
-        name: Test daemon logs
+      - name: Test daemon logs
         if: always()
         run: |
           cat bundles/test-integration/docker.log
-      -
-        name: Upload reports
+      - name: Upload reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -253,24 +219,20 @@ jobs:
     needs:
       - test-integration
     steps:
-      -
-        name: Set up Go
+      - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: vendor.sum
-      -
-        name: Download reports
+      - name: Download reports
         uses: actions/download-artifact@v4
         with:
           path: /tmp/reports
           pattern: test-reports-integration-arm64-*
           merge-multiple: true
-      -
-        name: Install teststat
+      - name: Install teststat
         run: |
           go install github.com/vearutop/teststat@${{ env.TESTSTAT_VERSION }}
-      -
-        name: Create summary
+      - name: Create summary
         run: |
           find /tmp/reports -type f -name '*-go-test-report.json' -exec teststat -markdown {} \+ >> $GITHUB_STEP_SUMMARY
